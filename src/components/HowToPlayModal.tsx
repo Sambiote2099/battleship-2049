@@ -46,27 +46,27 @@ export default function HowToPlayModal({
           <Section
             title="I. Create or join a room"
             body="Create a room and configure the grid size, your fleet (ship count and lengths), and which special attacks are allowed. Or join someone else's open room from the lobby list."
-            image="/Capture.png"
+            image="https://res.cloudinary.com/diasvvkil/image/upload/v1782496548/Capture_e1lido.png"
           />
           <Section
             title="II. Place your fleet"
             body="Drag ships from the tray onto your board. Use the rotate (⟳) button before or after placing. Each ship gets its own color so you can track them at a glance."
-            image="/Capture2.png"
+            image="https://res.cloudinary.com/diasvvkil/image/upload/v1782496547/Capture2_jyayja.png"
           />
           <Section
             title="III. Take turns firing"
             body="Click a cell on the enemy grid to fire. Hits, misses, and sunk ships are revealed instantly to both players."
-            image="/Capture3.png"
+            image="https://res.cloudinary.com/diasvvkil/image/upload/v1782496547/Capture3_nk0l4e.png"
           />
           <Section
             title="IV. Special attacks"
             body="If enabled for this room, you'll have a limited number of charges for: Nuclear (3×3 blast), Mortar (5-cell cross), and Cluster (your target + 4 random cells elsewhere). Pick one from the attack bar before firing — only available on your turn."
-            image="/Capture4.png"
+            image="https://res.cloudinary.com/diasvvkil/image/upload/v1782496547/Capture4_wsvfj7.png"
           />
           <Section
             title="V. Win the match"
             body="Sink every ship in your opponent's fleet to win. Each player also has a time bank — run out of time and you lose automatically. You can resign at any time, or cancel a room before the match starts."
-            image="/Capture5.png"
+            image="https://res.cloudinary.com/diasvvkil/image/upload/v1782496548/Capture5_hx4i3c.png"
           />
         </div>
 

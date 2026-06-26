@@ -1,0 +1,94 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum GameStatus {
+  WAITING   // host created it, waiting for opponent
+  PLACING   // both joined, placing ships
+  ACTIVE    // game in progress
+  FINISHED
+}
+
+model Player {
+  id          String   @id @default(uuid())
+  baseName    String
+  displayName String
+  suffix      Int      @default(1)
+  isBot       Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  wins       Int @default(0)
+  losses     Int @default(0)
+  shotsFired Int @default(0)
+  shotsHit   Int @default(0)
+
+  hostedGames GameSession[] @relation("HostPlayer")
+  joinedGames GameSession[] @relation("GuestPlayer")
+  moves       Move[]
+  ships       Ship[]
+
+  @@unique([baseName, suffix])
+  @@index([baseName])
+}
+
+model GameSession {
+  id          String     @id @default(uuid())
+  status      GameStatus @default(WAITING)
+  vsAI        Boolean    @default(false)
+  gridSize    Int        @default(10)
+  shipConfig  Json?
+  attackConfig  Json?
+  attackCharges Json?
+  turnStartedAt DateTime?
+  hostTimeMs    Int?
+  guestTimeMs   Int?
+
+  hostId      String
+  host        Player     @relation("HostPlayer", fields: [hostId], references: [id])
+  guestId     String?
+  guest       Player?    @relation("GuestPlayer", fields: [guestId], references: [id])
+
+  currentTurn String?
+  winnerId    String?
+
+  createdAt   DateTime   @default(now())
+  startedAt   DateTime?
+  finishedAt  DateTime?
+
+  ships Ship[]
+  moves Move[]
+}
+
+model Ship {
+  id       String      @id @default(uuid())
+  gameId   String
+  game     GameSession @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  playerId String
+  player   Player      @relation(fields: [playerId], references: [id])
+
+  type  String
+  cells Json
+  hits  Json   @default("[]")
+  sunk  Boolean @default(false)
+}
+
+model Move {
+  id         String      @id @default(uuid())
+  gameId     String
+  game       GameSession @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  playerId   String
+  player     Player      @relation(fields: [playerId], references: [id])
+
+  x          Int
+  y          Int
+  result     String
+  attackType String      @default("single")
+  turnNumber Int
+  createdAt  DateTime    @default(now())
+}

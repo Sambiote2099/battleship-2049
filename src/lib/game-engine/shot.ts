@@ -15,44 +15,24 @@ export type AttackOutcome = {
   guestTimeMs: number | null;
 };
 
-async function resolveCellHit(
-  gameId: string,
-  opponentId: string,
-  x: number,
-  y: number,
-  shooterId: string,
-  turnNumber: number,
-  attackType: AttackType
-): Promise<CellOutcome> {
-  const opponentShips = await prisma.ship.findMany({ where: { gameId, playerId: opponentId } });
+type ShipRow = { id: string; type: string; cells: any; hits: any; sunk: boolean };
 
-  let result: "hit" | "miss" | "sunk" = "miss";
-  let sunkShipType: string | null = null;
-
+function resolveCellAgainstShips(opponentShips: ShipRow[], x: number, y: number) {
   for (const ship of opponentShips) {
     const cells: { x: number; y: number }[] = ship.cells as any;
     const isHit = cells.some((c) => c.x === x && c.y === y);
-    if (isHit) {
-      const hits: { x: number; y: number }[] = (ship.hits as any) ?? [];
-      if (hits.some((h) => h.x === x && h.y === y)) {
-        result = ship.sunk ? "sunk" : "hit";
-        sunkShipType = ship.sunk ? ship.type : null;
-        break;
-      }
-      const newHits = [...hits, { x, y }];
-      const isSunk = cells.every((c) => newHits.some((h) => h.x === c.x && h.y === c.y));
-      await prisma.ship.update({ where: { id: ship.id }, data: { hits: newHits, sunk: isSunk } });
-      result = isSunk ? "sunk" : "hit";
-      if (isSunk) sunkShipType = ship.type;
-      break;
+    if (!isHit) continue;
+
+    const hits: { x: number; y: number }[] = (ship.hits as any) ?? [];
+    if (hits.some((h) => h.x === x && h.y === y)) {
+      return { ship, result: ship.sunk ? ("sunk" as const) : ("hit" as const), alreadyResolved: true };
     }
+
+    const newHits = [...hits, { x, y }];
+    const isSunk = cells.every((c) => newHits.some((h) => h.x === c.x && h.y === c.y));
+    return { ship, newHits, isSunk, result: isSunk ? ("sunk" as const) : ("hit" as const), alreadyResolved: false };
   }
-
-  await prisma.move.create({
-    data: { gameId, playerId: shooterId, x, y, result, turnNumber, attackType },
-  });
-
-  return { x, y, result, sunkShipType };
+  return null;
 }
 
 async function finalizeTurn(
@@ -75,8 +55,6 @@ async function finalizeTurn(
   let hostTimeMs = game.hostTimeMs;
   let guestTimeMs = game.guestTimeMs;
 
-  // Chess-clock: charge elapsed thinking time to whoever just moved. PvP only —
-  // vs-AI games never set up a clock in the first place, so this is a no-op there.
   if (!game.vsAI && game.turnStartedAt) {
     const elapsed = requestReceivedAt.getTime() - game.turnStartedAt.getTime();
     if (shooterId === game.hostId && hostTimeMs != null) {
@@ -153,10 +131,60 @@ export async function executeAreaAttack(
 
   const turnNumber = (await prisma.move.count({ where: { gameId } })) + 1;
 
+  // Fetch opponent ships ONCE for the whole attack, not once per cell.
+  const opponentShips: ShipRow[] = await prisma.ship.findMany({ where: { gameId, playerId: opponentId } });
+
   const outcomes: CellOutcome[] = [];
+  const shipUpdates: { id: string; hits: any; sunk: boolean }[] = [];
+
   for (const cell of newCells) {
-    outcomes.push(await resolveCellHit(gameId, opponentId, cell.x, cell.y, shooterId, turnNumber, attackType));
+    const resolved = resolveCellAgainstShips(opponentShips, cell.x, cell.y);
+
+    if (!resolved) {
+      outcomes.push({ x: cell.x, y: cell.y, result: "miss", sunkShipType: null });
+      continue;
+    }
+
+    if (resolved.alreadyResolved) {
+      outcomes.push({ x: cell.x, y: cell.y, result: resolved.result, sunkShipType: resolved.result === "sunk" ? resolved.ship.type : null });
+      continue;
+    }
+
+    // Mutate the in-memory copy so subsequent cells in this same attack
+    // see the updated hit state (matters when one attack hits the same
+    // ship twice, e.g. two adjacent nuke cells on one ship).
+    resolved.ship.hits = resolved.newHits;
+    resolved.ship.sunk = resolved.isSunk!;
+    shipUpdates.push({ id: resolved.ship.id, hits: resolved.newHits, sunk: resolved.isSunk! });
+
+    outcomes.push({
+      x: cell.x,
+      y: cell.y,
+      result: resolved.result,
+      sunkShipType: resolved.isSunk ? resolved.ship.type : null,
+    });
   }
+
+  // Ship updates must stay sequential if they target the same ship (rare but
+  // possible within one attack), so we keep this loop simple rather than
+  // risking a lost-update race from parallelizing same-ship writes.
+  for (const update of shipUpdates) {
+    await prisma.ship.update({ where: { id: update.id }, data: { hits: update.hits, sunk: update.sunk } });
+  }
+
+  // All Move rows for this attack are written in a single batched insert
+  // instead of one round-trip per cell.
+  await prisma.move.createMany({
+    data: outcomes.map((o) => ({
+      gameId,
+      playerId: shooterId,
+      x: o.x,
+      y: o.y,
+      result: o.result,
+      turnNumber,
+      attackType,
+    })),
+  });
 
   const { gameFinished, winnerId, nextTurn, hostTimeMs, guestTimeMs } = await finalizeTurn(
     gameId,

@@ -16,7 +16,7 @@ export default async function LeaderboardPage() {
 
   return (
     <main id="main" className="min-h-screen px-4 py-10">
-      <div className="fixed inset-0 -z-10 overflow-hidden">
+      <div className="fixed inset-0 -z-10 overflow-hidden bg-black">
               <Image
                 src="/1984473930_itdd.jpg.b31bcecb0dd59e3c1206bdb9a04501b7.jpg"
                 alt=""

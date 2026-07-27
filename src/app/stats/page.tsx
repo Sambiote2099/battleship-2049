@@ -24,7 +24,7 @@ export default async function StatsPage() {
 
   return (
     <main id="main" className="min-h-screen  px-4 py-10">
-      <div className="fixed inset-0 -z-10 overflow-hidden">
+      <div className="fixed bg-black inset-0 -z-10 overflow-hidden">
         <Image
           src="/Tirpitz_Brandenburg_Bismarck_Art_key-artwork_1920x1080_WG_Spb_WoWSL_NoLogo.jpg.9c31f53053d6b05df1ee40b32b722d9c.jpg"
           alt=""
